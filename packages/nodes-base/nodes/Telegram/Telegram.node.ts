@@ -9,7 +9,7 @@ import {
 	NodeOperationError,
 } from 'n8n-workflow';
 
-import { addAdditionalFields, apiRequest, getPropertyName } from './GenericFunctions';
+import { addAdditionalFields, apiRequest, getPropertyName, getFileEndpoint } from './GenericFunctions';
 
 export class Telegram implements INodeType {
 	description: INodeTypeDescription = {
@@ -2022,18 +2022,20 @@ export class Telegram implements INodeType {
 						const filePath = responseData.result.file_path;
 
 						const credentials = await this.getCredentials('telegramApi');
+
+						if (credentials === undefined) {
+							throw new NodeOperationError(this.getNode(), 'No credentials got returned!');
+						}
+
+						const fileUri = getFileEndpoint(credentials, `${filePath}`);
+
 						const file = await apiRequest.call(
 							this,
 							'GET',
 							'',
 							{},
 							{},
-							{
-								json: false,
-								encoding: null,
-								uri: `https://api.telegram.org/file/bot${credentials.accessToken}/${filePath}`,
-								resolveWithFullResponse: true,
-							},
+							{ json: false, encoding: null, uri: fileUri, resolveWithFullResponse: true },
 						);
 
 						const fileName = filePath.split('/').pop();

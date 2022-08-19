@@ -1,8 +1,14 @@
 import { IHookFunctions, IWebhookFunctions } from 'n8n-core';
 
-import { IDataObject, INodeType, INodeTypeDescription, IWebhookResponseData } from 'n8n-workflow';
+import {
+	IDataObject,
+	INodeType,
+	INodeTypeDescription,
+	IWebhookResponseData,
+	NodeOperationError,
+} from 'n8n-workflow';
 
-import { apiRequest, getImageBySize } from './GenericFunctions';
+import { apiRequest, getImageBySize, getFileEndpoint } from './GenericFunctions';
 
 import { IEvent } from './IEvent';
 
@@ -204,6 +210,10 @@ export class TelegramTrigger implements INodeType {
 	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
 		const credentials = await this.getCredentials('telegramApi');
 
+		if (credentials === undefined) {
+			throw new NodeOperationError(this.getNode(), 'No credentials got returned!');
+		}
+
 		const bodyData = this.getBodyData() as IEvent;
 
 		const additionalFields = this.getNodeParameter('additionalFields') as IDataObject;
@@ -246,8 +256,10 @@ export class TelegramTrigger implements INodeType {
 				}
 
 				const {
-					result: { file_path },
+					result: { file_path: filePath },
 				} = await apiRequest.call(this, 'GET', `getFile?file_id=${fileId}`, {});
+
+				const fileUri = getFileEndpoint(credentials, `${filePath}`);
 
 				const file = await apiRequest.call(
 					this,
@@ -258,14 +270,14 @@ export class TelegramTrigger implements INodeType {
 					{
 						json: false,
 						encoding: null,
-						uri: `https://api.telegram.org/file/bot${credentials.accessToken}/${file_path}`,
+						uri: fileUri,
 						resolveWithFullResponse: true,
 					},
 				);
 
 				const data = Buffer.from(file.body as string);
 
-				const fileName = file_path.split('/').pop();
+				const fileName = filePath.split('/').pop();
 
 				const binaryData = await this.helpers.prepareBinaryData(
 					data as unknown as Buffer,

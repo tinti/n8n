@@ -7,7 +7,12 @@ import {
 
 import { OptionsWithUri } from 'request';
 
-import { IDataObject, NodeApiError, NodeOperationError } from 'n8n-workflow';
+import {
+	ICredentialDataDecryptedObject,
+	IDataObject,
+	NodeApiError,
+	NodeOperationError,
+} from 'n8n-workflow';
 
 // Interface in n8n
 export interface IMarkupKeyboard {
@@ -157,12 +162,18 @@ export async function apiRequest(
 ): Promise<any> {
 	const credentials = await this.getCredentials('telegramApi');
 
+	if (credentials === undefined) {
+		throw new NodeOperationError(this.getNode(), 'No credentials got returned!');
+	}
+
+	const uri = getApiEndpoint(credentials, endpoint);
+
 	query = query || {};
 
 	const options: OptionsWithUri = {
 		headers: {},
 		method,
-		uri: `https://api.telegram.org/bot${credentials.accessToken}/${endpoint}`,
+		uri: uri,
 		body,
 		qs: query,
 		json: true,
@@ -202,4 +213,28 @@ export function getImageBySize(photos: IDataObject[], size: string): IDataObject
 
 export function getPropertyName(operation: string) {
 	return operation.replace('send', '').toLowerCase();
+}
+
+function formatEndpoint(s: string, ...args: string[]): string {
+	return s.replace(/{(\d+)}/g, function (match, number) {
+		return typeof args[number] != 'undefined' ? args[number] : match;
+	});
+}
+
+export function getApiEndpoint(
+	credentials: ICredentialDataDecryptedObject,
+	endpoint: string,
+): string {
+	return credentials.advanced
+		? formatEndpoint(`${credentials.apiEndpoint}`, `${credentials.accessToken}`, endpoint)
+		: `https://api.telegram.org/bot${credentials.accessToken}/${endpoint}`;
+}
+
+export function getFileEndpoint(
+	credentials: ICredentialDataDecryptedObject,
+	endpoint: string,
+): string {
+	return credentials.advanced
+		? formatEndpoint(`${credentials.fileEndpoint}`, `${credentials.accessToken}`, endpoint)
+		: `https://api.telegram.org/file/bot${credentials.accessToken}/${endpoint}`;
 }
