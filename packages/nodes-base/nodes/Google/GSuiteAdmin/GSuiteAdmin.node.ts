@@ -18,16 +18,16 @@ import { groupFields, groupOperations } from './GroupDescripion';
 
 export class GSuiteAdmin implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'G Suite Admin',
+		displayName: 'Google Workspace Admin',
 		name: 'gSuiteAdmin',
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-icon-not-svg
-		icon: 'file:gSuiteAdmin.png',
+		icon: 'file:google-workspace-admin.png',
 		group: ['input'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Consume G Suite Admin API',
+		description: 'Consume Google Workspace Admin API',
 		defaults: {
-			name: 'G Suite Admin',
+			name: 'Google Workspace Admin',
 		},
 		inputs: ['main'],
 		outputs: ['main'],
@@ -109,7 +109,7 @@ export class GSuiteAdmin implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
-		const returnData: IDataObject[] = [];
+		const returnData: INodeExecutionData[] = [];
 		const length = items.length;
 		const qs: IDataObject = {};
 		let responseData;
@@ -407,9 +407,6 @@ export class GSuiteAdmin implements INodeType {
 						delete body.emailUi;
 					}
 
-					//@ts-ignore
-					body['customSchemas'] = { testing: { hasdog: true } };
-
 					responseData = await googleApiRequest.call(
 						this,
 						'PUT',
@@ -419,14 +416,15 @@ export class GSuiteAdmin implements INodeType {
 					);
 				}
 			}
+
+			const executionData = this.helpers.constructExecutionMetaData(
+				this.helpers.returnJsonArray(responseData),
+				{ itemData: { item: i } },
+			);
+
+			returnData.push(...executionData);
 		}
 
-		if (Array.isArray(responseData)) {
-			returnData.push.apply(returnData, responseData as IDataObject[]);
-		} else if (responseData !== undefined) {
-			returnData.push(responseData as IDataObject);
-		}
-
-		return [this.helpers.returnJsonArray(returnData)];
+		return this.prepareOutputData(returnData);
 	}
 }

@@ -11,7 +11,11 @@ import { SchemaRegistry } from '@kafkajs/confluent-schema-registry';
 import { IExecuteFunctions } from 'n8n-core';
 
 import {
+	ICredentialDataDecryptedObject,
+	ICredentialsDecrypted,
+	ICredentialTestFunctions,
 	IDataObject,
+	INodeCredentialTestResult,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -35,6 +39,7 @@ export class Kafka implements INodeType {
 			{
 				name: 'kafka',
 				required: true,
+				testedBy: 'kafkaConnectionTest',
 			},
 		],
 		properties: [
@@ -91,6 +96,27 @@ export class Kafka implements INodeType {
 				placeholder: 'https://schema-registry-domain:8081',
 				default: '',
 				description: 'URL of the schema registry',
+			},
+			{
+				displayName: 'Use Key',
+				name: 'useKey',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to use a message key',
+			},
+			{
+				displayName: 'Key',
+				name: 'key',
+				type: 'string',
+				required: true,
+				displayOptions: {
+					show: {
+						useKey: [true],
+					},
+				},
+				placeholder: '',
+				default: '',
+				description: 'The message key',
 			},
 			{
 				displayName: 'Event Name',
@@ -185,6 +211,56 @@ export class Kafka implements INodeType {
 		],
 	};
 
+	methods = {
+		credentialTest: {
+			async kafkaConnectionTest(
+				this: ICredentialTestFunctions,
+				credential: ICredentialsDecrypted,
+			): Promise<INodeCredentialTestResult> {
+				const credentials = credential.data as ICredentialDataDecryptedObject;
+				try {
+					const brokers = ((credentials.brokers as string) || '')
+						.split(',')
+						.map((item) => item.trim()) as string[];
+
+					const clientId = credentials.clientId as string;
+
+					const ssl = credentials.ssl as boolean;
+
+					const config: KafkaConfig = {
+						clientId,
+						brokers,
+						ssl,
+					};
+					if (credentials.authentication === true) {
+						if (!(credentials.username && credentials.password)) {
+							throw Error('Username and password are required for authentication');
+						}
+						config.sasl = {
+							username: credentials.username as string,
+							password: credentials.password as string,
+							mechanism: credentials.saslMechanism as string,
+						} as SASLOptions;
+					}
+
+					const kafka = new apacheKafka(config);
+
+					await kafka.admin().connect();
+					await kafka.admin().disconnect();
+					return {
+						status: 'OK',
+						message: 'Authentication successful',
+					};
+				} catch (error) {
+					return {
+						status: 'Error',
+						message: error.message,
+					};
+				}
+			},
+		},
+	};
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 
@@ -276,6 +352,10 @@ export class Kafka implements INodeType {
 
 				const jsonParameters = this.getNodeParameter('jsonParameters', i) as boolean;
 
+				const useKey = this.getNodeParameter('useKey', i) as boolean;
+
+				const key = useKey ? (this.getNodeParameter('key', i) as string) : null;
+
 				let headers;
 
 				if (jsonParameters === true) {
@@ -303,6 +383,7 @@ export class Kafka implements INodeType {
 						{
 							value: message,
 							headers,
+							key,
 						},
 					],
 				});

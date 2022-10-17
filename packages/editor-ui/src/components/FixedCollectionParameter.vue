@@ -14,6 +14,7 @@
 				:label="$locale.nodeText().inputLabelDisplayName(property, path)"
 				:underline="true"
 				size="small"
+				color="text-dark"
 			/>
 			<div v-if="multipleValues === true">
 				<div
@@ -121,6 +122,7 @@ import { get } from 'lodash';
 import { genericHelpers } from '@/components/mixins/genericHelpers';
 
 import mixins from 'vue-typed-mixins';
+import {Component} from "vue";
 
 export default mixins(genericHelpers)
 	.extend({
@@ -131,6 +133,9 @@ export default mixins(genericHelpers)
 			'path', // string
 			'values', // INodeParameters
 		],
+		components: {
+			ParameterInputList: () => import('./ParameterInputList.vue') as Promise<Component>,
+		},
 		data() {
 			return {
 				selectedOption: undefined,
@@ -235,8 +240,6 @@ export default mixins(genericHelpers)
 				}
 				const name = `${this.path}.${option.name}`;
 
-				let parameterData;
-
 				const newParameterValue: INodeParameters = {};
 
 				for (const optionParameter of option.values) {
@@ -265,7 +268,7 @@ export default mixins(genericHelpers)
 					newValue = newParameterValue;
 				}
 
-				parameterData = {
+				const parameterData = {
 					name,
 					value: newValue,
 				};
@@ -276,11 +279,6 @@ export default mixins(genericHelpers)
 			valueChanged(parameterData: IUpdateInformation) {
 				this.$emit('valueChanged', parameterData);
 			},
-		},
-		beforeCreate: function () { // tslint:disable-line
-			// Because we have a circular dependency on ParameterInputList import it here
-			// to not break Vue.
-			this.$options!.components!.ParameterInputList = require('./ParameterInputList.vue').default;
 		},
 	});
 </script>
